@@ -353,14 +353,18 @@ data DockerVersion = DockerVersion {
                   , buildTime     :: Text
                   } deriving (Show, Eq, Generic)
 
+upperFirstLetter :: [Char] -> [Char]
+upperFirstLetter a = case a of
+    (x:xs) -> toUpper x : xs
+    []     -> []
 
 instance ToJSON DockerVersion where
     toJSON = genericToJSON defaultOptions {
-         fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+         fieldLabelModifier = upperFirstLetter }
 
 instance FromJSON DockerVersion where
     parseJSON = genericParseJSON defaultOptions {
-            fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+            fieldLabelModifier = upperFirstLetter }
 
 instance FromJSON ContainerDetails where
     parseJSON v@(JSON.Object o) = do
@@ -933,11 +937,11 @@ data Device = Device {
 
 instance ToJSON Device where
     toJSON = genericToJSON defaultOptions {
-         fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+         fieldLabelModifier = upperFirstLetter }
 
 instance FromJSON Device where
     parseJSON = genericParseJSON defaultOptions {
-            fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+            fieldLabelModifier = upperFirstLetter }
 
 type ContainerName = Text
 
@@ -1448,11 +1452,11 @@ data ContainerResources = ContainerResources {
 
 -- instance ToJSON ContainerResources where
 --     toJSON = genericToJSON defaultOptions {
---          fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+--          fieldLabelModifier = upperFirstLetter}
 
 instance FromJSON ContainerResources where
     parseJSON = genericParseJSON defaultOptions {
-        fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+        fieldLabelModifier = upperFirstLetter }
 
 type Port = Integer
 
@@ -1554,7 +1558,7 @@ data ContainerConfig = ContainerConfig {
 
 instance ToJSON ContainerConfig where
     toJSON = genericToJSON defaultOptions {
-         fieldLabelModifier = (\(x:xs) -> toUpper x : xs)}
+         fieldLabelModifier = upperFirstLetter }
 
 instance FromJSON ContainerConfig where
     parseJSON (JSON.Object o) = do

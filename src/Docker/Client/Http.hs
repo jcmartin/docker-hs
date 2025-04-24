@@ -5,10 +5,12 @@ module Docker.Client.Http where
 
 -- import           Control.Monad.Base           (MonadBase(..), liftBaseDefault)
 import           Control.Monad.Catch          (MonadMask (..))
+import           Control.Monad.IO.Class       (MonadIO (..))
 #if MIN_VERSION_http_conduit(2,3,0)
 import           Control.Monad.IO.Unlift      (MonadUnliftIO)
 #endif
-import           Control.Monad.Reader         (ReaderT (..), runReaderT)
+import           Control.Monad.Reader         (ReaderT (..), runReaderT,
+                                               MonadTrans (..))
 import qualified Data.ByteString.Char8        as BSC
 import qualified Data.ByteString.Lazy         as BL
 import           Data.Conduit                 (Sink)
