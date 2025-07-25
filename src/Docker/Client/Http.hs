@@ -40,7 +40,7 @@ import           System.X509                  (getSystemCertificateStore)
 import           Control.Monad.Catch          (try)
 import           Control.Monad.Except
 import           Control.Monad.Reader.Class
-import           Data.Text                    as T
+import qualified Data.Text                    as T
 import           Data.Typeable                (Typeable)
 import qualified Network.HTTP.Types           as HTTP
 import qualified Network.Socket               as S
@@ -61,10 +61,10 @@ newtype HttpHandler m = HttpHandler (forall a . Request -> (HTTP.Response () -> 
 
 data DockerError = DockerConnectionError NHS.HttpException
                  | DockerInvalidRequest Endpoint
-                 | DockerClientError Text
-                 | DockerClientDecodeError Text -- ^ Could not parse the response from the Docker endpoint.
+                 | DockerClientError T.Text
+                 | DockerClientDecodeError T.Text -- ^ Could not parse the response from the Docker endpoint.
                  | DockerInvalidStatusCode HTTP.Status -- ^ Invalid exit code received from Docker endpoint.
-                 | GenericDockerError Text deriving (Show, Typeable)
+                 | GenericDockerError T.Text deriving (Show, Typeable)
 
 newtype DockerT m a = DockerT {
         unDockerT :: Monad m => ReaderT (DockerClientOpts, HttpHandler m) m a
