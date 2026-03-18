@@ -329,7 +329,7 @@ data DockerClientOpts = DockerClientOpts {
 -- | Default "DockerClientOpts" used for talking to the docker engine.
 defaultClientOpts :: DockerClientOpts
 defaultClientOpts = DockerClientOpts {
-                  apiVer = "v1.24"
+                  apiVer = "v1.44"
                 , baseUrl = "http://127.0.0.1:2375"
                 }
 
