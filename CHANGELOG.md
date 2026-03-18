@@ -1,5 +1,9 @@
 # CHANGELOG
 
+## 0.8.3.0 (2026-03-18)
+- Deletion of fields that no longer exist in 1.44.
+- Added some haddock documentation
+
 ## 0.8.2.0 (2026-03-18)
 - Default API version is now 1.44 due to the min API version being increased (https://www.docker.com/blog/docker-engine-version-29/)
 

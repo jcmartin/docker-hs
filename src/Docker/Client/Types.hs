@@ -263,26 +263,34 @@ data ContainerDetails = ContainerDetails {
 -- | Data type used for parsing the mount information from a container
 -- list.
 data Mount = Mount {
+    -- | Name is the name reference to the underlying data defined by Source
       mountName        :: Maybe Text -- this is optional
+    -- | Source location of the mount.
     , mountSource      :: FilePath
+    -- | Destination is the path relative to the container root (/) where the Source is mounted inside the container.
     , mountDestination :: FilePath
+    -- | Driver is the volume driver used to create the volume (if it is a volume).
     , mountDriver      :: Maybe Text
     -- , mountMode        :: Maybe VolumePermission -- apparently this can be null
+    -- | Whether the mount is mounted writable (read-write).
     , mountRW          :: Bool
-    , mountPropogation :: Text
+    -- | Propagation describes how mounts are propagated from the host into the
+    --   mount point, and vice-versa. Refer to the Linux kernel documentation
+    --   for details. This field is not used on Windows.
+    , mountPropogation :: Maybe Text
     }
     deriving (Eq, Show, Generic)
 
 instance FromJSON Mount where
     parseJSON (JSON.Object o) = do
-        name <- o .:? "Name"
-        src <- o .: "Source"
-        dest <- o .: "Destination"
-        driver <- o .:? "Driver"
+        mountName <- o .:? "Name"
+        mountSource <- o .: "Source"
+        mountDestination <- o .: "Destination"
+        mountDriver <- o .:? "Driver"
         -- mode <- o .: "Mode"
-        rw <- o .: "RW"
-        prop <- o .: "Propagation"
-        return $ Mount name src dest driver rw prop
+        mountRW <- o .: "RW"
+        mountPropogation <- o .:? "Propagation"
+        return $ Mount{..}
     parseJSON _ = fail "Mount is not an object"
 
 -- | Data type used for parsing the container state from a list of
@@ -418,8 +426,11 @@ instance FromJSON ImageID where
 -- | Data type used for representing the information of various ports that
 -- a contianer may expose.
 data ContainerPortInfo = ContainerPortInfo {
+                  -- | Host IP address that the container's port is mapped to
                      ipAddressInfo   :: Maybe Text
+                  -- | Port on the container
                    , privatePortInfo :: Port
+                   -- | Port exposed on the host
                    , publicPortInfo  :: Maybe Port
                    , portTypeInfo    :: Maybe PortType
                    } deriving (Eq, Show)
@@ -439,14 +450,23 @@ data NetworkOptions = NetworkOptions {
 --                       ipamConfig          :: Maybe Text -- Don't see in 1.24
 --                     , links               :: Maybe Text -- Don't see in 1.24
 --                     , aliases             :: Maybe Text -- Don't see in 1.24
+--                  -- | Unique ID of the network.
                       networkOptionsId                  :: Text
+                    -- | Unique ID for the service endpoint in a Sandbox.
                     , networkOptionsEndpointId          :: Text
+                    -- | Gateway address for this network.
                     , networkOptionsGateway             :: Text
+                    -- | IPv4 address.
                     , networkOptionsIpAddress           :: Text -- Note: Parse this?
+                    -- | Mask length of the IPv4 address
                     , networkOptionsIpPrefixLen         :: Int
+                    -- | IPv6 gateway address.
                     , networkOptionsIpV6Gateway         :: Maybe Text
+                    -- | Global IPv6 address.
                     , networkOptionsGlobalIPv6Address   :: Maybe Text
+                    -- | Mask length of the global IPv6 address.
                     , networkOptionsGlobalIPv6PrefixLen :: Maybe Int
+                    -- | MAC address for the endpoint on this network. The network driver might ignore this parameter.
                     , networkOptionsMacAddress          :: Text
                     } deriving (Eq, Show)
 
@@ -526,15 +546,25 @@ instance FromJSON NetworkSettings where
 
 -- | Data type used for parsing a list of containers.
 data Container = Container
+               -- | The ID of this container
                { containerId        :: ContainerID
+               -- | The names that this container has been given
                , containerNames     :: [Text]
+               -- | The name of the image used when creating this container
                , containerImageName :: Text
+               -- | The ID of the image that this container was created from
                , containerImageId   :: ImageID
+               -- | Command to run when starting the container
                , containerCommand   :: Text
+               -- | When the container was created
                , containerCreatedAt :: Int
+               -- | The state of this container
                , containerState     :: State
+               -- | Additional human-readable status of this container
                , containerStatus    :: Maybe Text
+               -- | The ports exposed by this container
                , containerPorts     :: [ContainerPortInfo]
+               -- | User-defined key/value metadata.
                , containerLabels    :: [Label]
                , containerNetworks  :: [Network]
                , containerMounts    :: [Mount]
@@ -604,14 +634,24 @@ type Tag = Text
 
 -- | Data type used for parsing information from a list of images.
 data Image = DockerImage {
+    -- | ID is the content-addressable ID of an image.
       imageId          :: ImageID
+    -- | Date and time at which the image was created as a Unix timestamp (number of seconds since EPOCH).
     , imageCreated     :: Integer
+    -- | ID of the parent image.
     , imageParentId    :: Maybe ImageID
+    -- | List of image names/tags in the local image cache that reference this image.
     , imageRepoTags    :: [Tag]
+    -- | List of content-addressable digests of locally available image manifests that the image is referenced from. Multiple manifests can refer to the same image.
     , imageRepoDigests :: [Digest]
+    -- | Total size of the image including all layers it is composed of.
     , imageSize        :: Integer
-    , imageVirtualSize :: Integer
+    -- | Total size of image layers that are shared between this image and other images.
+    , imageSharedSize  :: Integer
+    -- | User-defined key/value metadata.
     , imageLabels      :: [Label]
+    -- | Number of containers using this image. Includes both stopped and running containers.
+    , imageContainers  :: Integer
     } deriving (Show, Eq, Generic)
 
 -- | Helper function used for dropping the "image" prefix when serializing
@@ -628,9 +668,10 @@ instance FromJSON Image where
         imageRepoTags <- o .:? "RepoTags" .!= []
         imageRepoDigests <- o .:? "RepoDigests" .!= []
         imageSize <- o .: "Size"
-        imageVirtualSize <- o .: "VirtualSize"
         imageLabels <- o .:? "Labels" .!= []
-        return $ DockerImage imageId imageCreated imageParentId imageRepoTags imageRepoDigests imageSize imageVirtualSize imageLabels
+        imageContainers <- o .: "Containers"
+        imageSharedSize <- o .: "SharedSize"
+        return $ DockerImage{..}
     parseJSON _ = fail "Failed to parse DockerImage."
 
 -- | Alias for Aliases.
@@ -704,6 +745,7 @@ defaultContainerConfig imageName = ContainerConfig {
                      , macAddress=Nothing
                      , labels=[]
                      , stopSignal=SIGTERM
+                     , stopTimeout=Nothing
                      }
 
 -- | Default host confiratuon used for creating a container.
@@ -1075,21 +1117,24 @@ instance FromJSON NetworkID where
 instance ToJSON NetworkID where
   toJSON (NetworkID nid) = object ["Id" .= nid]
 
-data PortType = TCP | UDP deriving (Eq, Generic, Read, Ord)
+data PortType = TCP | UDP | SCTP deriving (Eq, Generic, Read, Ord)
 
 instance Show PortType where
     show TCP = "tcp"
     show UDP = "udp"
+    show SCTP = "sctp"
 
 instance ToJSON PortType where
     toJSON TCP = "tcp"
     toJSON UDP = "udp"
+    toJSON SCTP = "sctp"
 
 instance FromJSON PortType where
     parseJSON val = case val of
-                    "tcp" -> return TCP
-                    "udp" -> return UDP
-                    _     -> fail "PortType: Invalid port type."
+                    "tcp"  -> return TCP
+                    "udp"  -> return UDP
+                    "sctp" -> return SCTP
+                    _      -> fail "PortType: Invalid port type."
 
 -- newtype NetworkInterface = NetworkInterface Text deriving (Eq, Show)
 --
@@ -1529,31 +1574,54 @@ instance FromJSON Entrypoint where
     parseJSON _ = fail "Failed to parse Entrypoint"
 
 
-data ContainerConfig = ContainerConfig {
-                       hostname        :: Maybe Text
-                     , domainname      :: Maybe Text
-                     , user            :: Maybe Text
-                     , attachStdin     :: Bool
-                     , attachStdout    :: Bool
-                     , attachStderr    :: Bool
-                     , exposedPorts    :: [ExposedPort]
-                     -- , publishService  :: Text -- Don't see this in 1.24
-                     , tty             :: Bool
-                     , openStdin       :: Bool
-                     , stdinOnce       :: Bool
-                     , env             :: [EnvVar]
-                     , cmd             :: [Text]
-                     -- , argsEscaped     :: Bool -- Don't see this in 1.24
-                     , image           :: Text
-                     , volumes         :: [Volume]
-                     , workingDir      :: Maybe FilePath
-                     , entrypoint      :: Entrypoint
-                     , networkDisabled :: Maybe Bool -- Note: Should we expand the JSON instance and take away the Maybe? Null is False?
-                     , macAddress      :: Maybe Text
-                     -- , onBuild         :: Maybe Text -- For 1.24, only see this in the inspect response.
-                     , labels          :: [Label]
-                     , stopSignal      :: Signal
-                     } deriving (Eq, Show, Generic)
+data ContainerConfig = ContainerConfig
+     -- | The hostname to use for the container, as a valid RFC 1123 hostname.
+     { hostname        :: Maybe Text
+     -- | The domain name to use for the container.
+     , domainname      :: Maybe Text
+     -- | The user that commands are run as inside the container.
+     , user            :: Maybe Text
+     -- | Whether to attach to stdin.
+     , attachStdin     :: Bool
+     -- | Whether to attach to stdout.
+     , attachStdout    :: Bool
+     -- | Whether to attach to stderr.
+     , attachStderr    :: Bool
+     -- | An object mapping ports to an empty object in the form: {"<port>/<tcp|udp|sctp>": {}}
+     , exposedPorts    :: [ExposedPort]
+     -- | Attach standard streams to a TTY, including stdin if it is not closed.
+     , tty             :: Bool
+     -- | Open stdin
+     , openStdin       :: Bool
+     -- | Close stdin after one attached client disconnects
+     , stdinOnce       :: Bool
+     -- | A list of environment variables to set inside the container in the
+     --   form ["VAR=value", ...]. A variable without = is removed from the
+     --   environment, rather than to have an empty value.
+     , env             :: [EnvVar]
+     -- | Command to run specified as a string or an array of strings.
+     , cmd             :: [Text]
+    -- | The name (or reference) of the image to use when creating the container,
+    --   or which was used when the container was created.
+     , image           :: Text
+     -- | An object mapping mount point paths inside the container to empty objects.
+     , volumes         :: [Volume]
+     -- | The working directory for commands to run in.
+     , workingDir      :: Maybe FilePath
+     -- | The entry point for the container as a string or an array of strings.
+     , entrypoint      :: Entrypoint
+     -- | Disable networking for the container.
+     , networkDisabled :: Maybe Bool -- Note: Should we expand the JSON instance and take away the Maybe? Null is False?
+     -- | Disable networking for the container. DEPRECATED
+     , macAddress      :: Maybe Text
+     -- , onBuild         :: Maybe Text -- For 1.24, only see this in the inspect response.
+     -- | User-defined key/value metadata.
+     , labels          :: [Label]
+     -- | Signal to stop a container as a string or unsigned integer.
+     , stopSignal      :: Signal
+     -- | Timeout to stop a container in seconds.
+     , stopTimeout     :: Maybe Integer
+     } deriving (Eq, Show, Generic)
 
 
 instance ToJSON ContainerConfig where
@@ -1582,8 +1650,8 @@ instance FromJSON ContainerConfig where
         macAddress <- o .:? "MacAddress"
         labels <- o .:? "Labels" .!= []
         stopSignal <- o .: "StopSignal"
-        return $ ContainerConfig hostname domainname user attachStdin attachStdout attachStderr exposedPorts tty openStdin stdinOnce env cmd image volumes workingDir entrypoint networkDisabled
-            macAddress labels stopSignal
+        stopTimeout <- o .:? "StopTimeout"
+        return $ ContainerConfig{..}
     parseJSON _ = fail "NetworkSettings is not an object."
 
 #if MIN_VERSION_base(4,13,0)
